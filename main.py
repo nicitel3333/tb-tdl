@@ -4,7 +4,12 @@ from textual.widgets import ListItem, ListView, Label, Input
 from src.app import load_tasks, save_tasks, Task
 
 class TdlApp(App):
-    BINDINGS = [("i", "add_task", "Add task")]
+    BINDINGS = [
+            ("i", "add_task", "Add task"),
+            ("j", "move_down", "Down"),
+            ("k", "move_up", "Up"),
+            ("q", "quit", "Quit"),
+        ]
 
     def compose(self) -> ComposeResult:
         yield Input(placeholder="New task...", id="task-input") 
@@ -13,6 +18,7 @@ class TdlApp(App):
     def on_mount(self) -> None:
         self.tasks = load_tasks()
         self.refresh_list()
+        self.query_one(ListView).focus()
    
     def refresh_list(self) -> None:
         list_view = self.query_one(ListView)
@@ -35,6 +41,12 @@ class TdlApp(App):
             self.refresh_list()
             event.input.value = ""
             self.query_one(ListView).focus()
+
+    def action_move_down(self) -> None:
+        self.query_one(ListView).action_cursor_down()
+
+    def action_move_up(self) -> None:
+        self.query_one(ListView).action_cursor_up()
 
 if __name__ == "__main__":
     app = TdlApp()
