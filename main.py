@@ -1,5 +1,6 @@
 from textual.app import App, ComposeResult
-from textual.widgets import ListItem, ListView, Label, Input
+from textual.widgets import Label, Input
+from textual.containers import VerticalScroll
 from src.app import load_tasks, save_tasks, Task
 
 class TdlApp(App):
@@ -13,17 +14,17 @@ class TdlApp(App):
 
     def compose(self) -> ComposeResult:
         yield Input(placeholder="New task...", id="task-input")
-        yield ListView()
+        yield VerticalScroll(id="task-list")
 
     def on_mount(self) -> None:
         self.current_index = 0
         self.tasks = load_tasks()
         self.refresh_list()
-        self.query_one(ListView).focus()
+        self.query_one(VerticalScroll).focus()
 
     def refresh_list(self) -> None:
-        list_view = self.query_one(ListView)
-        list_view.clear()
+        container = self.query_one("#task-list", VerticalScroll)
+        container.remove_children()
         for i, task in enumerate(self.tasks):
             selected = self.current_index == i
             if selected and task.done:
@@ -34,11 +35,7 @@ class TdlApp(App):
                 status = "[x]"
             else:
                 status = "[ ]"
-            list_view.append(ListItem(Label(f"{status} {task.title}")))
-        self.set_timer(0.05, self._restore_index)
-
-    def _restore_index(self) -> None:
-        self.query_one(ListView).index = self.current_index
+            container.mount(Label(f"{status} {task.title}", markup=False))
 
     def action_add_task(self) -> None:
         self.query_one("#task-input").focus()
@@ -51,7 +48,7 @@ class TdlApp(App):
             save_tasks(self.tasks)
             self.refresh_list()
             event.input.value = ""
-            self.query_one(ListView).focus()
+            self.query_one(VerticalScroll).focus()
 
     def action_move_down(self) -> None:
         if self.current_index < len(self.tasks) - 1:
@@ -65,8 +62,17 @@ class TdlApp(App):
 
     def action_toggle_done(self) -> None:
         if self.tasks:
-            self.tasks[self.current_index].done = not self.tasks[self.current_index].done
-            self.notify(f"task {self.current_index} done={self.tasks[self.current_index].done}")
+            task = self.tasks[self.current_index]
+            if task.done:
+                self.tasks.pop(self.current_index)
+                if self.current_index >= len(self.tasks):
+                    self.current_index = max(0, len(self.tasks) -1)
+            else:
+                task.done = True
+                self.tasks.pop(self.current_index)
+                self.tasks.append(task)
+                if self. current_index >= len(self.tasks) -1:
+                    self.current_index = len(self.tasks) -2
             save_tasks(self.tasks)
             self.refresh_list()
 
