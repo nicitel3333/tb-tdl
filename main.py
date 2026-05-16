@@ -76,7 +76,7 @@ class TdlApp(App):
             save_tasks(self.tasks)
             self.refresh_list()
 
-    def main():
+def main():
         app = TdlApp()
         app.run()
 
