@@ -2,12 +2,15 @@ from dataclasses import dataclass
 import json
 from pathlib import Path
 
+@dataclass
 class Task:
-    def __init__(self,id, title, done=False):
-        self.id = id
-        self.title = title
-        self.done = done
-        
+    id: int
+    title: str
+    done: bool = False
+    due_date: str = None
+    priority: int = 1
+    project: str = "Inbox"        
+
 STORAGE_FILE = Path.home() /".local" /"share" /"tb-tdl" /"tasks.json"
 
 def load_tasks() -> list[Task]:
