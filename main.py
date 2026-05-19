@@ -35,7 +35,9 @@ class TdlApp(App):
                 status = "[x]"
             else:
                 status = "[ ]"
-            container.mount(Label(f"{status} {task.title}", markup=False))
+            due = task.due_date or "xxx"
+            pri = task.priority if task.priority is not None else "xxx"
+            container.mount(Label(f"{status} {task.title} | {due} p{pri}", markup=False))
 
     def action_add_task(self) -> None:
         self.query_one("#task-input").focus()
