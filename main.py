@@ -38,7 +38,7 @@ class TdlApp(App):
                 status = "[x]"
             else:
                 status = "[ ]"
-            due = task.due_date[5:][::-1].replace("-", "/") if task.due_date else "xxx"
+            due = "/".join(reversed(task.due_date[5:].split("-"))) if task.due_date else "xxx"
             pri = task.priority if task.priority is not None else "xxx"
             container.mount(Label(f"{status} {task.title:<30} {due:<12} {pri}", markup=False))
 

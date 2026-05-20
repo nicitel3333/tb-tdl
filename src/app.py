@@ -18,7 +18,8 @@ def load_tasks() -> list[Task]:
         return []
     with open(STORAGE_FILE) as f:
         data = json.load(f)
-    return [Task(**t) for t in data]
+    defaults = {"due_date": None, "priority": 4, "project": "Inbox"}
+    return [Task(**{**defaults, **t}) for t in data]
 
 def save_tasks(tasks: list[Task]) -> None:
     STORAGE_FILE.parent.mkdir(parents=True, exist_ok=True)
