@@ -8,7 +8,7 @@ class Task:
     title: str
     done: bool = False
     due_date: str = None
-    priority: int = 1
+    priority: int = 4
     project: str = "Inbox"        
 
 STORAGE_FILE = Path.home() /".local" /"share" /"tb-tdl" /"tasks.json"
