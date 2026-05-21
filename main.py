@@ -13,6 +13,7 @@ class TdlApp(App):
         ("d", "toggle_done", "Toggle done"),
         ("s", "cycle_priority", "Priority"),
         ("a", "set_date", "Set date"),
+        ("e", "edit_title", "Edit title"),
     ]
 
     def compose(self) -> ComposeResult:
@@ -51,6 +52,14 @@ class TdlApp(App):
             self.query_one("#task-input").focus()
             self._setting_date = True
 
+    def action_edit_title(self) -> None:
+        if self.tasks:
+            inp = self.query_one("#task-input")
+            inp.placeholder = "Edit title..."
+            inp.value = self.tasks[self.current_index].title
+            inp.focus()
+            self._editing_title = True
+
     def on_input_submitted(self, event: Input.Submitted) -> None:
         value = event.value.strip()
         if getattr(self, "_setting_date", False):
@@ -65,6 +74,15 @@ class TdlApp(App):
                 except ValueError:
                     pass
             self.refresh_list()
+            self.query_one(VerticalScroll).focus()
+        elif getattr(self, "_editing_title", False):
+            self._editing_title = False
+            self.query_one("#task-input").placeholder = "New task..."
+            if value and self.tasks:
+                self.tasks[self.current_index].title = value
+                save_tasks(self.tasks)
+            self.refresh_list()
+            event.input.value = ""
             self.query_one(VerticalScroll).focus()
         else:
             if value:
@@ -108,6 +126,16 @@ class TdlApp(App):
             save_tasks(self.tasks)
             self.refresh_list()
 
+    def on_key(self, event) -> None:
+        if event.key == "escape":
+            self._setting_date = False
+            self._editing_title = False
+            inp = self.query_one("#task-input")
+            inp.value = ""
+            inp.placeholder = "New task..."
+            self.query_one(VerticalScroll).focus()
+            event.prevent_default()
+            event.stop()
 
 def main():
     app = TdlApp()
