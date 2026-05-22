@@ -1,6 +1,6 @@
 from textual.app import App, ComposeResult
 from textual.widgets import Label, Input
-from textual.containers import VerticalScroll
+from textual.containers import VerticalScroll, Horizontal
 from datetime import date
 from src.app import load_tasks, save_tasks, Task
 
@@ -14,6 +14,8 @@ class TdlApp(App):
         ("s", "cycle_priority", "Priority"),
         ("a", "set_date", "Set date"),
         ("e", "edit_title", "Edit title"),
+        ("l", "open_panel", "Open panel"),
+        ("h", "close_panel", "Close panel"),
     ]
 
     def compose(self) -> ComposeResult:
@@ -24,7 +26,7 @@ class TdlApp(App):
         self.current_index = 0
         self.tasks = load_tasks()
         self.refresh_list()
-        self.query_one(VerticalScroll).focus()
+        self.query_one("#task-list").focus()
 
     def refresh_list(self) -> None:
         container = self.query_one("#task-list", VerticalScroll)
@@ -74,7 +76,7 @@ class TdlApp(App):
                 except ValueError:
                     pass
             self.refresh_list()
-            self.query_one(VerticalScroll).focus()
+            self.query_one("#task-list").focus()
         elif getattr(self, "_editing_title", False):
             self._editing_title = False
             self.query_one("#task-input").placeholder = "New task..."
@@ -83,7 +85,7 @@ class TdlApp(App):
                 save_tasks(self.tasks)
             self.refresh_list()
             event.input.value = ""
-            self.query_one(VerticalScroll).focus()
+            self.query_one("#task-list").focus()
         else:
             if value:
                 task = Task(id=len(self.tasks) + 1, title=value)
@@ -91,7 +93,7 @@ class TdlApp(App):
                 save_tasks(self.tasks)
                 self.refresh_list()
                 event.input.value = ""
-            self.query_one(VerticalScroll).focus()
+            self.query_one("#task-list").focus()
 
     def action_move_down(self) -> None:
         if self.current_index < len(self.tasks) - 1:
@@ -133,9 +135,35 @@ class TdlApp(App):
             inp = self.query_one("#task-input")
             inp.value = ""
             inp.placeholder = "New task..."
-            self.query_one(VerticalScroll).focus()
+            self.query_one("#task-list").focus()
             event.prevent_default()
             event.stop()
+
+    def compose(self) -> ComposeResult:
+        yield Input(placeholder="New Task...", id="task-input")
+        with Horizontal(id="main"):
+            yield VerticalScroll(id="task-list")
+            yield VerticalScroll(id="right-panel")
+
+    CSS = """
+    #main {
+        height: 1fr;
+    }
+    #task-list {
+        width: 1fr;
+        border-right: solid $primary;
+    }
+    #right-panel {
+        width: 1fr;
+        display: none;
+    }
+    """
+
+    def action_open_panel(self) -> None:
+        self.query_one("#right-panel").styles.display = "block"
+
+    def action_close_panel(self) -> None:
+        self.query_one("#right-panel").styles.display = "none"
 
 def main():
     app = TdlApp()
