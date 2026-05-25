@@ -1,7 +1,7 @@
+from datetime import date, timedelta
 from textual.app import App, ComposeResult
 from textual.widgets import Label, Input, TextArea
 from textual.containers import VerticalScroll, Horizontal
-from datetime import date
 from src.app import load_tasks, save_tasks, Task
 import calendar
 
@@ -16,6 +16,8 @@ class TdlApp(App):
         ("e", "edit_title", "Edit title"),
         ("l", "open_panel", "Open panel"),
         ("h", "close_panel", "Close panel"),
+        ("w", "cycle_sort", "Sort"),
+        ("D", "delete_task", "Delete"),
     ]
 
     CSS = """
@@ -49,7 +51,7 @@ class TdlApp(App):
             yield VerticalScroll(id="task-list")
             with VerticalScroll(id="right-panel"):
                 with VerticalScroll(id="description-panel"):
-                    yield Label("Add description here...", id="desc-label", markup=False)
+                    yield Label("Add description here...", id="desc-label", markup=True)
                     yield TextArea(id="desc-editor")
                 yield VerticalScroll(id="calendar-panel")
 
@@ -59,6 +61,7 @@ class TdlApp(App):
         self._setting_date = False
         self._editing_title = False
         self._editing_description = False
+        self._sort_mode = 0
         self.tasks = load_tasks()
         self.refresh_list()
         self.query_one("#task-list").focus()
@@ -66,19 +69,34 @@ class TdlApp(App):
     def refresh_list(self) -> None:
         container = self.query_one("#task-list", VerticalScroll)
         container.remove_children()
-        for i, task in enumerate(self.tasks):
+        today = date.today()
+        tasks = self.tasks[:]
+        if self._sort_mode == 1:
+            tasks.sort(key=lambda t: t.due_date or "9999")
+        elif self._sort_mode == 2:
+            tasks.sort(key=lambda t: t.priority)
+        for i, task in enumerate(tasks):
             selected = self.current_index == i
             if selected and task.done:
-                status = "[X]"
+                status = "\\[X]"
             elif selected:
-                status = "[*]"
+                status = "\\[*]"
             elif task.done:
-                status = "[x]"
+                status = "\\[x]"
             else:
-                status = "[ ]"
+                status = "\\[ ]"
             due = "/".join(reversed(task.due_date[5:].split("-"))) if task.due_date else "xxx"
             pri = task.priority if task.priority is not None else "xxx"
-            container.mount(Label(f"{status} {task.title:<30} {due:<12} {pri}", markup=False))
+            line = f"{status} {task.title:<30} {due:<12} {pri}"
+            if task.due_date:
+                task_date = date.fromisoformat(task.due_date)
+                if task_date < today:
+                    line = f"[red]{line}[/red]"
+                elif task_date == today:
+                    line = f"[yellow]{line}[/yellow]"
+                elif task_date == today + timedelta(days=1):
+                    line = f"[cyan]{line}[/cyan]"
+            container.mount(Label(line, markup=True))
 
     def refresh_description(self) -> None:
         label = self.query_one("#desc-label")
@@ -132,10 +150,10 @@ class TdlApp(App):
         panel.remove_children()
         today = date.today()
         cal = calendar.monthcalendar(today.year, today.month)
-        panel.mount(Label(f"{today.strftime('%B %Y'):^41}", markup=False))
-        panel.mount(Label("", markup=False))
-        panel.mount(Label(f"{'Mo   Tu   We   Th   Fr   Sa   Su':^41}", markup=False))
-        panel.mount(Label("", markup=False))
+        panel.mount(Label(f"{today.strftime('%B %Y'):^41}", markup=True))
+        panel.mount(Label("", markup=True))
+        panel.mount(Label(f"{'Mo   Tu   We   Th   Fr   Sa   Su':^41}", markup=True))
+        panel.mount(Label("", markup=True))
         for week in cal:
             row = ""
             for day in week:
@@ -176,6 +194,7 @@ class TdlApp(App):
             if value:
                 task = Task(id=len(self.tasks) + 1, title=value)
                 self.tasks.append(task)
+                self.current_index = len(self.tasks) - 1
                 save_tasks(self.tasks)
                 self.refresh_list()
                 event.input.value = ""
@@ -234,16 +253,24 @@ class TdlApp(App):
     def action_toggle_done(self) -> None:
         if self.tasks:
             task = self.tasks[self.current_index]
+            task.done = not task.done
+            self.tasks.pop(self.current_index)
             if task.done:
-                self.tasks.pop(self.current_index)
-                if self.current_index >= len(self.tasks):
-                    self.current_index = max(0, len(self.tasks) - 1)
-            else:
-                task.done = True
-                self.tasks.pop(self.current_index)
                 self.tasks.append(task)
-                if self.current_index >= len(self.tasks) - 1:
-                    self.current_index = len(self.tasks) - 2
+                self.current_index = min(self.current_index, len(self.tasks) - 1)
+            else:
+                self.tasks.insert(self.current_index, task)
+            save_tasks(self.tasks)
+            self.refresh_list()
+
+    def action_delete_task(self) -> None:
+        if self.tasks:
+            task = self.tasks[self.current_index]
+            if not task.done:
+                return
+            self.tasks.pop(self.current_index)
+            if self.current_index >= len(self.tasks):
+                self.current_index = max(0, len(self.tasks) - 1)
             save_tasks(self.tasks)
             self.refresh_list()
 
@@ -253,6 +280,17 @@ class TdlApp(App):
             task.priority = (task.priority % 4) + 1
             save_tasks(self.tasks)
             self.refresh_list()
+
+    def action_cycle_sort(self) -> None:
+        self._sort_mode = (self._sort_mode + 1) % 3
+        self.refresh_list()
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        if self._setting_date:
+            val = event.value
+            if len(val) == 2 and val.isdigit():
+                event.input.value = val + "/"
+                event.input.cursor_position = 3
 
 def main():
     app = TdlApp()
