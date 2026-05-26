@@ -2,23 +2,13 @@ from datetime import date, timedelta
 from textual.app import App, ComposeResult
 from textual.widgets import Label, Input, TextArea
 from textual.containers import VerticalScroll, Horizontal
+from pathlib import Path
 from src.app import load_tasks, save_tasks, Task
+from src.config import load_config, create_default_config
 import calendar
 
 class TdlApp(App):
-    BINDINGS = [
-        ("j", "move_down", "Down"),
-        ("k", "move_up", "Up"),
-        ("q", "quit", "Quit"),
-        ("d", "toggle_done", "Toggle done"),
-        ("s", "cycle_priority", "Priority"),
-        ("a", "set_date", "Set date"),
-        ("e", "edit_title", "Edit title"),
-        ("l", "open_panel", "Open panel"),
-        ("h", "close_panel", "Close panel"),
-        ("w", "cycle_sort", "Sort"),
-        ("D", "delete_task", "Delete"),
-    ]
+    BINDINGS = []
 
     CSS = """
     #main {
@@ -44,6 +34,12 @@ class TdlApp(App):
         height: 1fr;
     }
     """
+
+    def __init__(self):
+        super().__init__()
+        self.config = load_config()
+        if not (Path.home() / ".config" / "tb-tdl" / "config.ini").exists():
+            create_default_config()
 
     def compose(self) -> ComposeResult:
         yield Input(placeholder="New task...", id="task-input")
@@ -91,11 +87,14 @@ class TdlApp(App):
             if task.due_date:
                 task_date = date.fromisoformat(task.due_date)
                 if task_date < today:
-                    line = f"[red]{line}[/red]"
+                    color = self.config["colors"]["overdue"]
+                    line = f"[{color}]{line}[/{color}]"
                 elif task_date == today:
-                    line = f"[yellow]{line}[/yellow]"
+                    color = self.config["colors"]["today"]
+                    line = f"[{color}]{line}[/{color}]"
                 elif task_date == today + timedelta(days=1):
-                    line = f"[cyan]{line}[/cyan]"
+                    color = self.config["colors"]["tomorrow"]
+                    line = f"[{color}]{line}[/{color}]"
             container.mount(Label(line, markup=True))
 
     def refresh_description(self) -> None:
@@ -201,6 +200,7 @@ class TdlApp(App):
             self.query_one("#task-list").focus()
 
     def on_key(self, event) -> None:
+        k = self.config["keybinds"]
         if event.key == "escape":
             if self._editing_description:
                 self._editing_description = False
@@ -228,13 +228,31 @@ class TdlApp(App):
             self.query_one("#task-list").focus()
             event.prevent_default()
             event.stop()
-        elif event.key == "i" and not self._editing_description and not self._setting_date and not self._editing_title:
+        elif event.key == k["add_task"] and not self._editing_description and not self._setting_date and not self._editing_title:
             if self._panel_open:
                 self.action_edit_description()
             else:
                 self.action_add_task()
             event.prevent_default()
             event.stop()
+        else:
+            actions = {
+                k["move_down"]: self.action_move_down,
+                k["move_up"]: self.action_move_up,
+                k["quit"]: self.app.exit,
+                k["toggle_done"]: self.action_toggle_done,
+                k["delete_task"]: self.action_delete_task,
+                k["cycle_priority"]: self.action_cycle_priority,
+                k["set_date"]: self.action_set_date,
+                k["edit_title"]: self.action_edit_title,
+                k["open_panel"]: self.action_open_panel,
+                k["close_panel"]: self.action_close_panel,
+                k["cycle_sort"]: self.action_cycle_sort,
+            }
+            if event.key in actions and not self._editing_description and not self._setting_date and not self._editing_title:
+                actions[event.key]()
+                event.prevent_default()
+                event.stop()
 
     def action_move_down(self) -> None:
         if self.current_index < len(self.tasks) - 1:
