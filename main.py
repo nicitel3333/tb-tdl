@@ -6,6 +6,7 @@ from pathlib import Path
 from src.app import load_tasks, save_tasks, Task
 from src.config import load_config, create_default_config
 import calendar
+from src.sync import sync
 
 class TdlApp(App):
     BINDINGS = []
@@ -59,6 +60,13 @@ class TdlApp(App):
         self._editing_description = False
         self._sort_mode = 0
         self.tasks = load_tasks()
+        api_key = self.config["todoist"]["api_key"]
+        if api_key:
+            try:
+                self.tasks = sync(api_key, self.tasks)
+                save_tasks(self.tasks)
+            except Exception:
+                pass
         self.refresh_list()
         self.query_one("#task-list").focus()
 
@@ -309,6 +317,16 @@ class TdlApp(App):
             if len(val) == 2 and val.isdigit():
                 event.input.value = val + "/"
                 event.input.cursor_position = 3
+
+    def action_quit(self) -> None:
+        api_key = self.config["todoist"]["api_key"]
+        if api_key:
+            try:
+                sync(api_key, self.tasks)
+                save_tasks(self.tasks)
+            except Exception:
+                pass
+            self.exit()
 
 def main():
     app = TdlApp()

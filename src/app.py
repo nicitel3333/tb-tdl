@@ -11,6 +11,7 @@ class Task:
     priority: int = 4
     project: str = "Inbox"
     description: str = None
+    todoist_id: str = None
 
 STORAGE_FILE = Path.home() /".local" /"share" /"tb-tdl" /"tasks.json"
 
@@ -19,7 +20,7 @@ def load_tasks() -> list[Task]:
         return []
     with open(STORAGE_FILE) as f:
         data = json.load(f)
-    defaults = {"due_date": None, "priority": 4, "project": "Inbox", "description": None}
+    defaults = {"due_date": None, "priority": 4, "project": "Inbox", "description": None, "todoist_id": None}   
     return [Task(**{**defaults, **t}) for t in data]
 
 def save_tasks(tasks: list[Task]) -> None:
