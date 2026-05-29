@@ -79,6 +79,8 @@ class TdlApp(App):
             tasks.sort(key=lambda t: t.due_date or "9999")
         elif self._sort_mode == 2:
             tasks.sort(key=lambda t: t.priority)
+        col_w = max((len(t.title) for t in tasks), default=30)
+        col_2 = max(col_w, 30)
         for i, task in enumerate(tasks):
             selected = self.current_index == i
             if selected and task.done:
@@ -91,7 +93,7 @@ class TdlApp(App):
                 status = "\\[ ]"
             due = "/".join(reversed(task.due_date[5:].split("-"))) if task.due_date else "xxx"
             pri = task.priority if task.priority is not None else "xxx"
-            line = f"{status} {task.title:<30} {due:<12} {pri}"
+            line = f"{status} {task.title:<{col_w}} {due:<12} {pri}"
             if task.due_date:
                 task_date = date.fromisoformat(task.due_date)
                 if task_date < today:
@@ -294,11 +296,14 @@ class TdlApp(App):
             task = self.tasks[self.current_index]
             if not task.done:
                 return
+            if task.todoist_id:
+                api_key = self.config["todoist"]["api_key"]
+                if api_key:
+                    try:
+                        delete_task(api_key, task.todoist_id)
+                    except Exception:
+                        pass
             self.tasks.pop(self.current_index)
-            if self.current_index >= len(self.tasks):
-                self.current_index = max(0, len(self.tasks) - 1)
-            save_tasks(self.tasks)
-            self.refresh_list()
 
     def action_cycle_priority(self) -> None:
         if self.tasks:
