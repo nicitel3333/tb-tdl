@@ -23,6 +23,7 @@ DEFAULTS = {
         "open_panel": "l",
         "close_panel": "h",
         "cycle_sort": "w",
+        "sync": "r",
     },
     "todoist": {
         "api_key": "",

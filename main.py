@@ -6,7 +6,7 @@ from pathlib import Path
 from src.app import load_tasks, save_tasks, Task
 from src.config import load_config, create_default_config
 import calendar
-from src.sync import sync
+from src.sync import sync, push_task, update_task, delete_task, close_task, reopen_task
 
 class TdlApp(App):
     BINDINGS = []
@@ -60,15 +60,24 @@ class TdlApp(App):
         self._editing_description = False
         self._sort_mode = 0
         self.tasks = load_tasks()
-        api_key = self.config["todoist"]["api_key"]
-        if api_key:
-            try:
-                self.tasks = sync(api_key, self.tasks)
-                save_tasks(self.tasks)
-            except Exception:
-                pass
+        self.do_sync()
         self.refresh_list()
         self.query_one("#task-list").focus()
+
+    def do_sync(self) -> None:
+        api_key = self.config["todoist"]["api_key"]
+        if not api_key:
+            return
+        try:
+            self.tasks = sync(api_key, self.tasks)
+            save_tasks(self.tasks)
+            self.refresh_list()
+        except Exception:
+            pass
+
+    def _api_key(self) -> str | None:
+        key = self.config["todoist"]["api_key"]
+        return key if key else None
 
     def refresh_list(self) -> None:
         container = self.query_one("#task-list", VerticalScroll)
@@ -80,7 +89,7 @@ class TdlApp(App):
         elif self._sort_mode == 2:
             tasks.sort(key=lambda t: t.priority)
         col_w = max((len(t.title) for t in tasks), default=30)
-        col_2 = max(col_w, 30)
+        col_w = max(col_w, 30)
         for i, task in enumerate(tasks):
             selected = self.current_index == i
             if selected and task.done:
@@ -91,11 +100,19 @@ class TdlApp(App):
                 status = "\\[x]"
             else:
                 status = "\\[ ]"
-            due = "/".join(reversed(task.due_date[5:].split("-"))) if task.due_date else "xxx"
-            pri = task.priority if task.priority is not None else "xxx"
-            line = f"{status} {task.title:<{col_w}} {due:<12} {pri}"
             if task.due_date:
-                task_date = date.fromisoformat(task.due_date)
+                if "T" in task.due_date:
+                    date_part, time_part = task.due_date.split("T")
+                    dd_mm = "/".join(reversed(date_part[5:].split("-")))
+                    due = f"{dd_mm} {time_part}"
+                else:
+                    due = "/".join(reversed(task.due_date[5:].split("-")))
+            else:
+                due = "xxx"
+            pri = task.priority if task.priority is not None else "xxx"
+            line = f"{status} {task.title:<{col_w}} {due:<18} {pri}"
+            if task.due_date:
+                task_date = date.fromisoformat(task.due_date[:10])
                 if task_date < today:
                     color = self.config["colors"]["overdue"]
                     line = f"[{color}]{line}[/{color}]"
@@ -177,6 +194,7 @@ class TdlApp(App):
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         value = event.value.strip()
+        api_key = self._api_key()
         if self._setting_date:
             self._setting_date = False
             self.query_one("#task-input").placeholder = "New task..."
@@ -186,6 +204,11 @@ class TdlApp(App):
                     year = date.today().year
                     self.tasks[self.current_index].due_date = f"{year}-{int(month):02d}-{int(day):02d}"
                     save_tasks(self.tasks)
+                    if api_key and self.tasks[self.current_index].todoist_id:
+                        try:
+                            update_task(api_key, self.tasks[self.current_index])
+                        except Exception:
+                            pass
                 except ValueError:
                     pass
             self.refresh_list()
@@ -196,12 +219,22 @@ class TdlApp(App):
             if value and self.tasks:
                 self.tasks[self.current_index].title = value
                 save_tasks(self.tasks)
+                if api_key and self.tasks[self.current_index].todoist_id:
+                    try:
+                        update_task(api_key, self.tasks[self.current_index])
+                    except Exception:
+                        pass
             self.refresh_list()
             event.input.value = ""
             self.query_one("#task-list").focus()
         else:
             if value:
                 task = Task(id=len(self.tasks) + 1, title=value)
+                if api_key:
+                    try:
+                        task.todoist_id = push_task(api_key, task)
+                    except Exception:
+                        pass
                 self.tasks.append(task)
                 self.current_index = len(self.tasks) - 1
                 save_tasks(self.tasks)
@@ -231,6 +264,12 @@ class TdlApp(App):
             if self.tasks:
                 self.tasks[self.current_index].description = desc
                 save_tasks(self.tasks)
+                api_key = self._api_key()
+                if api_key and self.tasks[self.current_index].todoist_id:
+                    try:
+                        update_task(api_key, self.tasks[self.current_index])
+                    except Exception:
+                        pass
             self._editing_description = False
             editor.styles.display = "none"
             self.refresh_description()
@@ -258,6 +297,7 @@ class TdlApp(App):
                 k["open_panel"]: self.action_open_panel,
                 k["close_panel"]: self.action_close_panel,
                 k["cycle_sort"]: self.action_cycle_sort,
+                k["sync"]: self.do_sync,
             }
             if event.key in actions and not self._editing_description and not self._setting_date and not self._editing_title:
                 actions[event.key]()
@@ -282,6 +322,12 @@ class TdlApp(App):
         if self.tasks:
             task = self.tasks[self.current_index]
             task.done = not task.done
+            api_key = self._api_key()
+            if api_key and task.todoist_id:
+                try:
+                    close_task(api_key, task.todoist_id) if task.done else reopen_task(api_key, task.todoist_id)
+                except Exception:
+                    pass
             self.tasks.pop(self.current_index)
             if task.done:
                 self.tasks.append(task)
@@ -296,20 +342,29 @@ class TdlApp(App):
             task = self.tasks[self.current_index]
             if not task.done:
                 return
-            if task.todoist_id:
-                api_key = self.config["todoist"]["api_key"]
-                if api_key:
-                    try:
-                        delete_task(api_key, task.todoist_id)
-                    except Exception:
-                        pass
+            api_key = self._api_key()
+            if api_key and task.todoist_id:
+                try:
+                    delete_task(api_key, task.todoist_id)
+                except Exception:
+                    pass
             self.tasks.pop(self.current_index)
+            if self.current_index >= len(self.tasks):
+                self.current_index = max(0, len(self.tasks) - 1)
+            save_tasks(self.tasks)
+            self.refresh_list()
 
     def action_cycle_priority(self) -> None:
         if self.tasks:
             task = self.tasks[self.current_index]
             task.priority = (task.priority % 4) + 1
             save_tasks(self.tasks)
+            api_key = self._api_key()
+            if api_key and task.todoist_id:
+                try:
+                    update_task(api_key, task)
+                except Exception:
+                    pass
             self.refresh_list()
 
     def action_cycle_sort(self) -> None:
@@ -324,14 +379,8 @@ class TdlApp(App):
                 event.input.cursor_position = 3
 
     def action_quit(self) -> None:
-        api_key = self.config["todoist"]["api_key"]
-        if api_key:
-            try:
-                sync(api_key, self.tasks)
-                save_tasks(self.tasks)
-            except Exception:
-                pass
-            self.exit()
+        self.do_sync()
+        self.exit()
 
 def main():
     app = TdlApp()

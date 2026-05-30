@@ -50,7 +50,7 @@ def sync(api_key: str, local_tasks: list[Task]) -> list[Task]:
             task.description = remote.get("description") or None
             task.priority = remote["priority"]
             due_raw = remote.get("due", {}).get("date") if remote.get("due") else None
-            task.due_date = due_raw[:10] if due_raw else None
+            task.due_date = due_raw[:16] if due_raw else None
             task.done = remote.get("checked", False)
             result.append(task)
         else:
@@ -63,7 +63,7 @@ def sync(api_key: str, local_tasks: list[Task]) -> list[Task]:
                 title=remote["content"],
                 description=remote.get("description") or None,
                 priority=remote["priority"],
-                due_date=remote.get("due", {}).get("date")[:10] if remote.get("due") and remote["due"].get("date") else None,
+                due_date=remote.get("due", {}).get("date")[:16] if remote.get("due") and remote["due"].get("date") else None,
                 done=remote.get("checked", False),
                 todoist_id=rid,
             )
@@ -71,5 +71,13 @@ def sync(api_key: str, local_tasks: list[Task]) -> list[Task]:
             result.append(task)
     return result
 
+
+
 def delete_task(api_key: str, todoist_id: str) -> None:
     requests.delete(f"{API_URL}/tasks/{todoist_id}", headers=get_headers(api_key))
+
+def close_task(api_key: str, todoist_id: str) -> None:
+    requests.post(f"{API_URL}/tasks/{todoist_id}/close", headers=get_headers(api_key))
+
+def reopen_task(api_key: str, todoist_id: str) -> None:
+    requests.post(f"{API_URL}/tasks/{todoist_id}/reopen", headers=get_headers(api_key))
