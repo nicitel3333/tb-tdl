@@ -24,6 +24,7 @@ DEFAULTS = {
         "close_panel": "h",
         "cycle_sort": "w",
         "sync": "r",
+        "set_time": "t",
     },
     "todoist": {
         "api_key": "",

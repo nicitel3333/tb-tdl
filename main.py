@@ -63,6 +63,7 @@ class TdlApp(App):
         self.do_sync()
         self.refresh_list()
         self.query_one("#task-list").focus()
+        self._setting_time = False
 
     def do_sync(self) -> None:
         api_key = self.config["todoist"]["api_key"]
@@ -213,6 +214,26 @@ class TdlApp(App):
                     pass
             self.refresh_list()
             self.query_one("#task-list").focus()
+        elif self._setting_time:
+            self._setting_time = False
+            self.query_one("#task-input").placeholder = "New task..."
+            if value and self.tasks:
+                task = self.tasks[self.current_index]
+                parts = value.replace(":", "").ljust(4, "0")
+                hh = parts[:2].zfill(2)
+                mm = parts[2:4].zfill(2)
+                time_str = f"{hh}:{mm}"
+                date_part = task.due_date[:10] if task.due_date else date.today().isoformat()
+                task.due_date = f"{date_part}T{time_str}"
+                save_tasks(self.tasks)
+                api_key = self._api_key()
+                if api_key and task.todoist_id:
+                    try:
+                        update_task(api_key, task)
+                    except Exception:
+                        pass
+            self.refresh_list()
+            self.query_one("#task-list").focus()
         elif self._editing_title:
             self._editing_title = False
             self.query_one("#task-input").placeholder = "New task..."
@@ -298,8 +319,9 @@ class TdlApp(App):
                 k["close_panel"]: self.action_close_panel,
                 k["cycle_sort"]: self.action_cycle_sort,
                 k["sync"]: self.do_sync,
+                k["set_time"]: self.action_set_time,
             }
-            if event.key in actions and not self._editing_description and not self._setting_date and not self._editing_title:
+            if event.key in actions and not self._editing_description and not self._setting_date and not self._editing_title and not self._setting_time:
                 actions[event.key]()
                 event.prevent_default()
                 event.stop()
@@ -371,16 +393,29 @@ class TdlApp(App):
         self._sort_mode = (self._sort_mode + 1) % 3
         self.refresh_list()
 
+    
+
     def on_input_changed(self, event: Input.Changed) -> None:
         if self._setting_date:
             val = event.value
             if len(val) == 2 and val.isdigit():
                 event.input.value = val + "/"
                 event.input.cursor_position = 3
+        elif self._setting_time:
+            val = event.value.replace(":", "")
+            if len(val) >= 2 and ":" not in event.value:
+                event.input.value = val[:2] + ":" + val[2:]
+                event.input.cursor_position = len(event.input.value)
 
     def action_quit(self) -> None:
         self.do_sync()
         self.exit()
+
+    def action_set_time(self) -> None:
+        if self.tasks:
+            self.query_one("#task-input").placeholder = "Time (HH:MM..."
+            self.query_one("#task-input").focus()
+            self._setting_time = True
 
 def main():
     app = TdlApp()
