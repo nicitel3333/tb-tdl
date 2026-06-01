@@ -25,6 +25,8 @@ DEFAULTS = {
         "cycle_sort": "w",
         "sync": "r",
         "set_time": "t",
+        "remove_date": "A",
+        "remove_time": "T",
     },
     "todoist": {
         "api_key": "",
