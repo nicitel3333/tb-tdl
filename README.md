@@ -7,7 +7,8 @@ It isnt perfect, bu I tried my best. It still has some flaws, but I will fix the
 
 installation:
 Arch: aur package (for example yay tb-tdl)
-installation from other distros will be added soon.
+Universal installer: pipx install tb-tdl
+Installation from other distros will be added soon.
 
 Config:
 We automatically generate config in ~/.config/
