@@ -3,7 +3,7 @@ from textual.app import App, ComposeResult
 from textual.widgets import Label, Input, TextArea
 from textual.containers import VerticalScroll, Horizontal
 from pathlib import Path
-from src.app import load_tasks, save_tasks, Task
+from src.app import load_tasks, save_tasks, Task, load_state, save_state
 from src.config import load_config, create_default_config
 import calendar
 from src.sync import sync, push_task, update_task, delete_task, close_task, reopen_task
@@ -59,7 +59,7 @@ class TdlApp(App):
         self._setting_time = False
         self._editing_title = False
         self._editing_description = False
-        self._sort_mode = 0
+        self._sort_mode = load_state().get("sort_mode", 0)
         self.tasks = load_tasks()
         self.do_sync()
         self.refresh_list()
@@ -195,15 +195,15 @@ class TdlApp(App):
             editor.move_cursor(editor.document.end)
             self._editing_description = True
 
-    def action_open_panel(self) -> None:
-        self._panel_open = True
-        self.query_one("#right-panel").styles.display = "block"
-        self.refresh_description()
-        self.render_calendar()
-
-    def action_close_panel(self) -> None:
-        self._panel_open = False
-        self.query_one("#right-panel").styles.display = "none"
+    def action_toggle_panel(self) -> None:
+        if self._panel_open:
+            self._panel_open = False
+            self.query_one("#right-panel").styles.display = "none"
+        else:
+            self._panel_open = True
+            self.query_one("#right-panel").styles.display = "block"
+            self.refresh_description()
+            self.render_calendar()
 
     def render_calendar(self) -> None:
         panel = self.query_one("#calendar-panel")
@@ -351,8 +351,7 @@ class TdlApp(App):
                 k["remove_date"]: self.action_remove_date,
                 k["remove_time"]: self.action_remove_time,
                 k["edit_title"]: self.action_edit_title,
-                k["open_panel"]: self.action_open_panel,
-                k["close_panel"]: self.action_close_panel,
+                k["toggle_panel"]: self.action_toggle_panel,
                 k["cycle_sort"]: self.action_cycle_sort,
                 k["sync"]: self.do_sync,
             }
@@ -426,6 +425,7 @@ class TdlApp(App):
 
     def action_cycle_sort(self) -> None:
         self._sort_mode = (self._sort_mode + 1) % 3
+        save_state({"sort_mode": self._sort_mode})
         self.refresh_list()
 
     def on_input_changed(self, event: Input.Changed) -> None:

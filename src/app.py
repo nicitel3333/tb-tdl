@@ -14,6 +14,18 @@ class Task:
     todoist_id: str = None
 
 STORAGE_FILE = Path.home() /".local" /"share" /"tb-tdl" /"tasks.json"
+STATE_FILE = Path.home() / ".local" / "share" / "tb-tdl" / "state.json"
+
+def load_state() -> dict:
+    if not STATE_FILE.exists():
+        return {}
+    with open(STATE_FILE) as f:
+        return json.load(f)
+
+def save_state(state: dict) -> None:
+    STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(STATE_FILE, "w") as f:
+        json.dump(state, f)
 
 def load_tasks() -> list[Task]:
     if not STORAGE_FILE.exists():
