@@ -26,11 +26,30 @@ DEFAULTS = {
         "set_time": "t",
         "remove_date": "A",
         "remove_time": "T",
+        "toggle_help": "/",
     },
     "todoist": {
         "api_key": "",
     },
 }
+
+_CHAR_TO_KEY = {
+    "/": "slash",
+    "\\": "backslash",
+    ".": "period",
+    ",": "comma",
+    ";": "semicolon",
+    "'": "apostrophe",
+    "`": "grave_accent",
+    "[": "left_square_bracket",
+    "]": "right_square_bracket",
+    "-": "minus",
+    "=": "equals_sign",
+    " ": "space",
+}
+
+def to_textual_key(key: str) -> str:
+    return _CHAR_TO_KEY.get(key, key)
 
 def load_config() -> configparser.ConfigParser:
     config = configparser.ConfigParser()

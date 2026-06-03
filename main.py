@@ -4,12 +4,13 @@ from textual.widgets import Label, Input, TextArea
 from textual.containers import VerticalScroll, Horizontal
 from pathlib import Path
 from src.app import load_tasks, save_tasks, Task, load_state, save_state
-from src.config import load_config, create_default_config
+from src.config import load_config, create_default_config, to_textual_key
 import calendar
 from src.sync import sync, push_task, update_task, delete_task, close_task, reopen_task
 
 class TdlApp(App):
     BINDINGS = []
+    LAYERS = ["default", "overlay"]
 
     CSS = """
     #main {
@@ -34,11 +35,32 @@ class TdlApp(App):
         display: none;
         height: 1fr;
     }
+    #help-panel {
+        display: none;
+        width: 100%;
+        height: 100%;
+        border: solid $accent;
+        background: $surface;
+        layer: overlay;
+        padding: 1 2;
+    }
+    #help-cols {
+        height: auto;
+    }
+    #help-col-left {
+        width: 1fr;
+    }
+    #help-col-right {
+        width: 1fr;
+    }
     """
 
     def __init__(self):
         super().__init__()
         self.config = load_config()
+        kb = self.config["keybinds"]
+        for key in kb:
+            kb[key] = to_textual_key(kb[key])
         if not (Path.home() / ".config" / "tb-tdl" / "config.ini").exists():
             create_default_config()
 
@@ -51,10 +73,14 @@ class TdlApp(App):
                     yield Label("Add description here...", id="desc-label", markup=True)
                     yield TextArea(id="desc-editor")
                 yield VerticalScroll(id="calendar-panel")
+        with VerticalScroll(id="help-panel"):
+            pass
 
     def on_mount(self) -> None:
         self.current_index = 0
         self._panel_open = False
+        self._help_open = False
+        self._help_rendered = False
         self._setting_date = False
         self._setting_time = False
         self._editing_title = False
@@ -84,11 +110,11 @@ class TdlApp(App):
         container = self.query_one("#task-list", VerticalScroll)
         container.remove_children()
         today = date.today()
-        tasks = self.tasks[:]
         if self._sort_mode == 1:
-            tasks.sort(key=lambda t: t.due_date or "9999")
+            self.tasks.sort(key=lambda t: t.due_date or "9999")
         elif self._sort_mode == 2:
-            tasks.sort(key=lambda t: t.priority)
+            self.tasks.sort(key=lambda t: t.priority)
+        tasks = self.tasks
         col_w = max((len(t.title) for t in tasks), default=30)
         col_w = max(col_w, 30)
         for i, task in enumerate(tasks):
@@ -205,6 +231,17 @@ class TdlApp(App):
             self.refresh_description()
             self.render_calendar()
 
+    def action_toggle_help(self) -> None:
+        if self._help_open:
+            self._help_open = False
+            self.query_one("#help-panel").styles.display = "none"
+        else:
+            self._help_open = True
+            self.query_one("#help-panel").styles.display = "block"
+            if not self._help_rendered:
+                self.render_help()
+                self._help_rendered = True
+
     def render_calendar(self) -> None:
         panel = self.query_one("#calendar-panel")
         panel.remove_children()
@@ -225,6 +262,36 @@ class TdlApp(App):
                     row += f" {day:2}   "
             panel.mount(Label(f"{row:^35}", markup=False))
             panel.mount(Label("", markup=False))
+
+    def render_help(self) -> None:
+        panel = self.query_one("#help-panel")
+        k = self.config["keybinds"]
+        panel.mount(Label("[bold cyan]KEYBINDS[/bold cyan]", markup=True))
+        panel.mount(Label("", markup=True))
+        bindings = [
+            (k["add_task"], "Add task"),
+            (k["move_up"], "Move up"),
+            (k["move_down"], "Move down"),
+            (k["toggle_done"], "Toggle done"),
+            (k["delete_task"], "Delete task"),
+            (k["cycle_priority"], "Cycle priority"),
+            (k["set_date"], "Set date"),
+            (k["remove_date"], "Remove date"),
+            (k["set_time"], "Set time"),
+            (k["remove_time"], "Remove time"),
+            (k["edit_title"], "Edit title"),
+            (k["toggle_panel"], "Toggle panel"),
+            (k["cycle_sort"], "Cycle sort"),
+            (k["sync"], "Sync"),
+            (k["toggle_help"], "Toggle help"),
+            (k["quit"], "Quit"),
+        ]
+        mid = (len(bindings) + 1) // 2
+        left_labels = [Label(f"[bold]{key:8}[/bold] {desc}", markup=True) for key, desc in bindings[:mid]]
+        right_labels = [Label(f"[bold]{key:8}[/bold] {desc}", markup=True) for key, desc in bindings[mid:]]
+        left_col = VerticalScroll(*left_labels, id="help-col-left")
+        right_col = VerticalScroll(*right_labels, id="help-col-right")
+        panel.mount(Horizontal(left_col, right_col, id="help-cols"))
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         value = event.value.strip()
@@ -298,7 +365,10 @@ class TdlApp(App):
     def on_key(self, event) -> None:
         k = self.config["keybinds"]
         if event.key == "escape":
-            if self._editing_description:
+            if self._help_open:
+                self._help_open = False
+                self.query_one("#help-panel").styles.display = "none"
+            elif self._editing_description:
                 self._editing_description = False
                 self.query_one("#desc-editor").styles.display = "none"
                 self.query_one("#desc-label").styles.display = "block"
@@ -329,6 +399,10 @@ class TdlApp(App):
             self.refresh_description()
             self.query_one("#desc-label").styles.display = "block"
             self.query_one("#task-list").focus()
+            event.prevent_default()
+            event.stop()
+        elif event.key == k["toggle_help"]:
+            self.action_toggle_help()
             event.prevent_default()
             event.stop()
         elif event.key == k["add_task"] and not self._editing_description and not self._setting_date and not self._setting_time and not self._editing_title:
