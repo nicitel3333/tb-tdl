@@ -90,6 +90,8 @@ class TdlApp(App):
         self.do_sync()
         self.refresh_list()
         self.query_one("#task-list").focus()
+        self._calendar_mode = False
+        self._cal_cursor = date.today()
 
     def do_sync(self) -> None:
         api_key = self.config["todoist"]["api_key"]
@@ -246,22 +248,30 @@ class TdlApp(App):
         panel = self.query_one("#calendar-panel")
         panel.remove_children()
         today = date.today()
-        cal = calendar.monthcalendar(today.year, today.month)
-        panel.mount(Label(f"{today.strftime('%B %Y'):^41}", markup=True))
-        panel.mount(Label("", markup=True))
-        panel.mount(Label(f"{'Mo   Tu   We   Th   Fr   Sa   Su':^41}", markup=True))
-        panel.mount(Label("", markup=True))
+        cursor = self._cal_cursor
+        year, month = cursor.year, cursor.month
+        cal = calendar.monthcalendar(year, month)
+        panel.mount(Label(cursor.strftime('%B %Y'), markup=False))
+        panel.mount(Label("", markup=False))
+        panel.mount(Label("Mo  Tu  We  Th  Fr  Sa  Su", markup=False))
+        panel.mount(Label("", markup=False))
         for week in cal:
-            row = ""
+            parts = []
             for day in week:
                 if day == 0:
-                    row += "      "
-                elif day == today.day:
-                    row += f"[{day:2}]  "
+                    parts.append("    ")
                 else:
-                    row += f" {day:2}   "
-            panel.mount(Label(f"{row:^35}", markup=False))
+                    d = date(year, month, day)
+                    if self._calendar_mode and d == cursor:
+                        parts.append(f"[bold green]{day:2}[/bold green]  ")
+                    elif d == today:
+                        parts.append(f"[yellow]{day:2}[/yellow]  ")
+                    else:
+                        parts.append(f"{day:2}  ")
+            panel.mount(Label("".join(parts), markup=True))
+        if self._calendar_mode:
             panel.mount(Label("", markup=False))
+            panel.mount(Label("[dim]enter: select   esc: cancel[/dim]", markup=True))
 
     def render_help(self) -> None:
         panel = self.query_one("#help-panel")
@@ -513,6 +523,18 @@ class TdlApp(App):
             if len(val) >= 2 and ":" not in event.value:
                 event.input.value = val[:2] + ":" + val[2:]
                 event.input.cursor_position = len(event.input.value)
+
+    def action_toggle_calendar_mode(self) -> None:
+        if not self._panel_open:
+            return
+        self._calendar_mode = not self._calendar_mode
+        if self._calendar_mode:
+            task = task.self.tasks[self.current_index] if self.tasks else None
+            if task and task.due_date:
+                self._cal_cursor = date.fromisoformat(task.due_date[:10])
+            else:
+                self._cal_cursor = date.today()
+        self.render_calendar()
 
     def action_quit(self) -> None:
         self.do_sync()
