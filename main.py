@@ -85,13 +85,13 @@ class TdlApp(App):
         self._setting_time = False
         self._editing_title = False
         self._editing_description = False
+        self._calendar_mode = False
+        self._cal_cursor = date.today()
         self._sort_mode = load_state().get("sort_mode", 0)
         self.tasks = load_tasks()
         self.do_sync()
         self.refresh_list()
         self.query_one("#task-list").focus()
-        self._calendar_mode = False
-        self._cal_cursor = date.today()
 
     def do_sync(self) -> None:
         api_key = self.config["todoist"]["api_key"]
@@ -226,6 +226,7 @@ class TdlApp(App):
     def action_toggle_panel(self) -> None:
         if self._panel_open:
             self._panel_open = False
+            self._calendar_mode = False
             self.query_one("#right-panel").styles.display = "none"
         else:
             self._panel_open = True
@@ -295,6 +296,7 @@ class TdlApp(App):
             (k["sync"], "Sync"),
             (k["toggle_help"], "Toggle help"),
             (k["quit"], "Quit"),
+            (k["toggle_calendar"], "Control calendar"),
         ]
         mid = (len(bindings) + 1) // 2
         left_labels = [Label(f"[bold]{key:8}[/bold] {desc}", markup=True) for key, desc in bindings[:mid]]
@@ -302,6 +304,33 @@ class TdlApp(App):
         left_col = VerticalScroll(*left_labels, id="help-col-left")
         right_col = VerticalScroll(*right_labels, id="help-col-right")
         panel.mount(Horizontal(left_col, right_col, id="help-cols"))
+
+    def action_toggle_calendar_mode(self) -> None:
+        if not self._panel_open:
+            return
+        self._calendar_mode = not self._calendar_mode
+        if self._calendar_mode:
+            task = self.tasks[self.current_index] if self.tasks else None
+            if task and task.due_date:
+                self._cal_cursor = date.fromisoformat(task.due_date[:10])
+            else:
+                self._cal_cursor = date.today()
+        self.render_calendar()
+
+    def action_cal_select(self) -> None:
+        if self.tasks:
+            task = self.tasks[self.current_index]
+            task.due_date = self._cal_cursor.isoformat()
+            save_tasks(self.tasks)
+            api_key = self._api_key()
+            if api_key and task.todoist_id:
+                try:
+                    update_task(api_key, task)
+                except Exception:
+                    pass
+        self._calendar_mode = False
+        self.render_calendar()
+        self.refresh_list()
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         value = event.value.strip()
@@ -375,7 +404,10 @@ class TdlApp(App):
     def on_key(self, event) -> None:
         k = self.config["keybinds"]
         if event.key == "escape":
-            if self._help_open:
+            if self._calendar_mode:
+                self._calendar_mode = False
+                self.render_calendar()
+            elif self._help_open:
                 self._help_open = False
                 self.query_one("#help-panel").styles.display = "none"
             elif self._editing_description:
@@ -411,6 +443,25 @@ class TdlApp(App):
             self.query_one("#task-list").focus()
             event.prevent_default()
             event.stop()
+        elif self._calendar_mode and event.key in ("h", "l", "j", "k", "enter"):
+            if event.key == "h":
+                self._cal_cursor -= timedelta(days=1)
+            elif event.key == "l":
+                self._cal_cursor += timedelta(days=1)
+            elif event.key == "k":
+                self._cal_cursor -= timedelta(weeks=1)
+            elif event.key == "j":
+                self._cal_cursor += timedelta(weeks=1)
+            elif event.key == "enter":
+                self.action_cal_select()
+            if event.key != "enter":
+                self.render_calendar()
+            event.prevent_default()
+            event.stop()
+        elif event.key == k["toggle_calendar"] and self._panel_open and not self._editing_description:
+            self.action_toggle_calendar_mode()
+            event.prevent_default()
+            event.stop()
         elif event.key == k["toggle_help"]:
             self.action_toggle_help()
             event.prevent_default()
@@ -439,7 +490,7 @@ class TdlApp(App):
                 k["cycle_sort"]: self.action_cycle_sort,
                 k["sync"]: self.do_sync,
             }
-            if event.key in actions and not self._editing_description and not self._setting_date and not self._setting_time and not self._editing_title:
+            if event.key in actions and not self._editing_description and not self._setting_date and not self._setting_time and not self._editing_title and not self._calendar_mode:
                 actions[event.key]()
                 event.prevent_default()
                 event.stop()
@@ -523,18 +574,6 @@ class TdlApp(App):
             if len(val) >= 2 and ":" not in event.value:
                 event.input.value = val[:2] + ":" + val[2:]
                 event.input.cursor_position = len(event.input.value)
-
-    def action_toggle_calendar_mode(self) -> None:
-        if not self._panel_open:
-            return
-        self._calendar_mode = not self._calendar_mode
-        if self._calendar_mode:
-            task = task.self.tasks[self.current_index] if self.tasks else None
-            if task and task.due_date:
-                self._cal_cursor = date.fromisoformat(task.due_date[:10])
-            else:
-                self._cal_cursor = date.today()
-        self.render_calendar()
 
     def action_quit(self) -> None:
         self.do_sync()
