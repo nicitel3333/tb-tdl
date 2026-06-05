@@ -27,7 +27,7 @@ DEFAULTS = {
         "remove_date": "A",
         "remove_time": "T",
         "toggle_help": "/",
-        "toggle_calendar": "C"
+        "toggle_calendar": "C",
     },
     "todoist": {
         "api_key": "",

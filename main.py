@@ -113,9 +113,9 @@ class TdlApp(App):
         container.remove_children()
         today = date.today()
         if self._sort_mode == 1:
-            self.tasks.sort(key=lambda t: t.due_date or "9999")
+            self.tasks.sort(key=lambda t: (t.done, (t.due_date or "9999")[:10]))
         elif self._sort_mode == 2:
-            self.tasks.sort(key=lambda t: t.priority)
+            self.tasks.sort(key=lambda t: (t.done, t.priority if t.priority is not None else 999))
         tasks = self.tasks
         col_w = max((len(t.title) for t in tasks), default=30)
         col_w = max(col_w, 30)
