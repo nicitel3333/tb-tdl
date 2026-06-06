@@ -9,6 +9,8 @@ DEFAULTS = {
         "today": "yellow",
         "tomorrow": "cyan",
         "overdue": "red",
+        "cal_today": "yellow",
+        "cal_cursor": "green",
     },
     "keybinds": {
         "add_task": "i",

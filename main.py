@@ -264,9 +264,11 @@ class TdlApp(App):
                 else:
                     d = date(year, month, day)
                     if self._calendar_mode and d == cursor:
-                        parts.append(f"[bold green]{day:2}[/bold green]  ")
+                        color = self.config["colors"]["cal_cursor"]
+                        parts.append(f"[{color}]{day:2}[/{color}] ")
                     elif d == today:
-                        parts.append(f"[yellow]{day:2}[/yellow]  ")
+                        color = self.config["colors"]["cal_today"]
+                        parts.append(f"[{color}]{day:2}[/{color}]  ")
                     else:
                         parts.append(f"{day:2}  ")
             panel.mount(Label("".join(parts), markup=True))
