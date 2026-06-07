@@ -11,6 +11,7 @@ DEFAULTS = {
         "overdue": "red",
         "cal_today": "yellow",
         "cal_cursor": "green",
+        "cal_task_dot": "green",
     },
     "keybinds": {
         "add_task": "i",

@@ -245,6 +245,7 @@ class TdlApp(App):
                 self.render_help()
                 self._help_rendered = True
 
+
     def render_calendar(self) -> None:
         panel = self.query_one("#calendar-panel")
         panel.remove_children()
@@ -252,26 +253,43 @@ class TdlApp(App):
         cursor = self._cal_cursor
         year, month = cursor.year, cursor.month
         cal = calendar.monthcalendar(year, month)
+        task_counts = {}
+        for task in self.tasks:
+            if task.done or not task.due_date:
+                continue
+            day_str = task.due_date[:10]
+            task_counts[day_str] = task_counts.get(day_str, 0) + 1
         panel.mount(Label(cursor.strftime('%B %Y'), markup=False))
         panel.mount(Label("", markup=False))
         panel.mount(Label("Mo  Tu  We  Th  Fr  Sa  Su", markup=False))
         panel.mount(Label("", markup=False))
+        dot_color = self.config["colors"]["cal_task_dot"]
         for week in cal:
             parts = []
+            dot_parts = []
             for day in week:
                 if day == 0:
                     parts.append("    ")
+                    dot_parts.append("    ")
                 else:
                     d = date(year, month, day)
+                    count = task_counts.get(d.isoformat(), 0)
                     if self._calendar_mode and d == cursor:
                         color = self.config["colors"]["cal_cursor"]
-                        parts.append(f"[{color}]{day:2}[/{color}] ")
+                        parts.append(f"[{color}]{day:2}[/{color}]  ")
                     elif d == today:
                         color = self.config["colors"]["cal_today"]
                         parts.append(f"[{color}]{day:2}[/{color}]  ")
                     else:
                         parts.append(f"{day:2}  ")
+                    dots = "·" * min(count, 3)
+                    dot_parts.append(f"{dots:^4}")
             panel.mount(Label("".join(parts), markup=True))
+            dot_line = "".join(dot_parts)
+            if dot_line.strip():
+                panel.mount(Label(f"[{dot_color}]{dot_line}[/{dot_color}]", markup=True))
+            else:
+                panel.mount(Label("", markup=False))
         if self._calendar_mode:
             panel.mount(Label("", markup=False))
             panel.mount(Label("[dim]enter: select   esc: cancel[/dim]", markup=True))
